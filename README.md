@@ -1,9 +1,8 @@
 # Rust piscine local tester
 
-Use `rt` as the short command: `rt`, `rt scalar`, `rt --all`, or `rt --list`.
-Both `rt` and `rust-test` are installed and accept the same arguments.
-
-Run the bundled 146 Rust exercise suites locally, without a submission cooldown.
+Test your Rust piscine exercises locally with `rt`, without a submission cooldown.
+Includes 146 bundled exercise suites. Both `rt` and `rust-test` are installed
+and accept the same arguments.
 Requires Linux/macOS (or WSL). The installer sets up Rust, Cargo, and missing
 system build tools automatically. No Docker or Python is needed for normal use.
 Internet access is required if Rust needs installation; installing system build
@@ -11,19 +10,22 @@ tools may prompt for your sudo password.
 
 ## Install once
 
-From this directory:
-
-```sh
-sh install.sh
-```
-
-Open a new terminal afterward. The installer configures Bash, Zsh and login-shell
-startup files automatically and prints a command to activate the current terminal.
-For one command that also activates your current terminal:
+From the downloaded tester directory, run this single command:
 
 ```sh
 sh install.sh && . "$HOME/.local/lib/rust-piscine-tester/env"
 ```
+
+The installer:
+
+- Finds an existing Rust installation, including one missing from `PATH`.
+- Installs Rust and Cargo if needed, plus missing system build tools on supported Linux distributions.
+- Builds the tester and installs `rt` and `rust-test`.
+- Configures Bash, Zsh and login-shell startup files for future terminals.
+
+You can use `rt` immediately after the command finishes. You do not need to
+create an alias manually. On macOS, if Apple Command Line Tools are missing,
+finish their installation when prompted and rerun the command.
 
 Installation copies the tests into `~/.local/lib/rust-piscine-tester`
 and the command into `~/.local/bin`; you can then remove the original download.
@@ -33,16 +35,16 @@ For another location use `sh install.sh --prefix /your/path`.
 
 ```sh
 cd /path/to/piscine-rust/scalar
-rust-test                       # detects scalar, also works inside scalar/src
+rt                              # detects scalar, also works inside scalar/src
 
 cd /path/to/piscine-rust
-rust-test scalar                # one exercise
-rust-test --all                  # all supported exercises found recursively
+rt scalar                       # one exercise
+rt --all                        # all supported exercises found recursively
 
 cd /any/other/folder
-rust-test scalar /path/to/piscine-rust
-rust-test --all /path/to/piscine-rust
-rust-test --list                 # all 146 bundled exercise names
+rt scalar /path/to/piscine-rust
+rt --all /path/to/piscine-rust
+rt --list                       # all bundled exercise names
 ```
 
 Without installation: `sh /path/to/rust-tests/rust-test scalar /path/to/piscine-rust`.
@@ -57,12 +59,40 @@ projects. Unsupported projects are explicitly skipped and make the batch exit
 nonzero. It tests existing exercises, not missing quests. Run batches on your
 piscine directory, not your entire home directory.
 
+## Website-style output
+
 Output includes Cargo's full warnings, source locations, error codes and hints,
 as in the website tester. Compilation failures end with `Solution did not compile.`
+
+For example, a private `sum` function in `scalar/src/lib.rs` produces diagnostics
+like these (excerpt):
+
+```text
+warning: function `sum` is never used
+error[E0425]: cannot find function `sum` in this scope
+ --> src/main.rs:5:25
+  |
+5 |     println!("sum: {}", sum(234, 2)); // 'sum: 236'
+  |                         ^^^ not found in this scope
+...
+scalar failed
+Solution did not compile.
+```
+
+The test suite imports your library from a separate crate. Functions required
+by the subject must be public, for example `pub fn sum(a: u8, b: u8) -> u8`.
+For `scalar`, this also applies to `diff`, `pro`, `quo`, and `rem`.
+
+Passing solutions print Cargo's test results followed by `scalar passed`.
+An assertion failure prints the failed test and its assertion details; it is
+reported separately from a compilation failure.
+
 The website's `Already failed code at commit` / `Previous output` wrapper belongs
 to its submission cache; local runs always test your current saved files.
 Local file paths, compiler versions, timings and platform test versions can differ
 from the website, so the output is not guaranteed to be byte-for-byte identical.
+
+## Builds and time limits
 
 Your source files are copied into a temporary directory and cleaned up afterward;
 build artifacts are cached in the installed tester. Cargo may download dependencies
@@ -70,7 +100,24 @@ on first use. Subsequent runs can work offline once those dependencies are cache
 The default limit is 120 seconds per exercise, including compilation/downloads:
 
 ```sh
-RUST_TEST_TIMEOUT_SECS=300 rust-test scalar
+RUST_TEST_TIMEOUT_SECS=300 rt scalar
+```
+
+## Update an existing installation
+
+After updating the downloaded tester files, rerun the installer from that directory:
+
+```sh
+sh install.sh && . "$HOME/.local/lib/rust-piscine-tester/env"
+```
+
+This updates both commands and the installed test bundle. Repeated installation
+does not duplicate the startup entries.
+
+If `rt` is unavailable in an already-open terminal, activate its environment:
+
+```sh
+. "$HOME/.local/lib/rust-piscine-tester/env"
 ```
 
 ## Coverage and provenance
