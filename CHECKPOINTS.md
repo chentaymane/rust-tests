@@ -4,12 +4,12 @@ All 40 unique exercises in these four checkpoint lists have bundled test suites.
 Repeated exercises use the same suite. Levels, difficulty and XP depend on the
 checkpoint version; the tables below preserve the supplied groupings.
 
-Run an exercise from your solution repository:
+Run a standalone exercise file from your checkpoint directory (no Cargo setup needed):
 
 ```sh
-rt min_and_max
-rt matrix_multiplication
-rt rpn
+rt min_and_max.rs
+rt matrix_multiplication.rs
+rt rpn.rs
 ```
 
 Or run every supported exercise found in a checkpoint directory:

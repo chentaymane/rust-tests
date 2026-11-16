@@ -4,7 +4,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{env, fs, io};
 
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
-const USAGE: &str = "usage: rust-test [exercise] [solution-directory-or-file]\n       rust-test --push|-p [exercise-folder] [solution-directory-or-file]\n       rust-test --all [piscine-directory]\n       rust-test --list\n\nexamples:\n  rust-test scalar ../piscine-rust\n  rust-test scalar ../piscine-rust/scalar/src/lib.rs\n  rt -p scalar\n  rt --push ../piscine-rust/scalar\n\n--push / -p: test first, then git add, commit with the folder name, and push.\nOnly the exercise folder is committed. Uses your configured Git remote/upstream.\n\nRun only trusted code. This tool does not sandbox solutions or build scripts.\nRuns stop after 120 seconds; set RUST_TEST_TIMEOUT_SECS to a positive whole number to change the limit.";
+const USAGE: &str = "usage: rust-test [exercise] [solution-directory-or-file]\n       rust-test <exercise>.rs\n       rust-test --push|-p [exercise-folder] [solution-directory-or-file]\n       rust-test --all [piscine-directory]\n       rust-test --list\n\nexamples:\n  rt min_and_max.rs\n  rt /path/to/checkpoint/min_and_max.rs\n  rust-test scalar ../piscine-rust\n  rust-test scalar ../piscine-rust/scalar/src/lib.rs\n  rt -p scalar\n  rt --push ../piscine-rust/scalar\n\n--push / -p: test first, then git add, commit with the folder name, and push.\nOnly the exercise folder is committed. Uses your configured Git remote/upstream.\n\nRun only trusted code. This tool does not sandbox solutions or build scripts.\nRuns stop after 120 seconds; set RUST_TEST_TIMEOUT_SECS to a positive whole number to change the limit.";
 
 struct Workspace(PathBuf);
 
@@ -130,12 +130,17 @@ fn solution_dir(exercise: &str, input: &Path) -> io::Result<PathBuf> {
     let input = input.canonicalize()?;
     let directory = if input.is_file() {
         if !input.parent().is_some_and(|parent| parent.ends_with("src")) {
+            if input.extension().is_some_and(|extension| extension == "rs") {
+                return Ok(input);
+            }
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "Solution file must be inside an exercise's src directory",
+                "Expected a Rust (.rs) solution file",
             ));
         }
         input.parent().unwrap().parent().unwrap().to_path_buf()
+    } else if input.join(format!("{exercise}.rs")).is_file() {
+        return Ok(input.join(format!("{exercise}.rs")));
     } else if input.join(exercise).is_dir() {
         input.join(exercise)
     } else {
@@ -154,7 +159,20 @@ fn solution_dir(exercise: &str, input: &Path) -> io::Result<PathBuf> {
 }
 
 fn stage_solution(source: &Path, destination: &Path, name: &str) -> io::Result<()> {
-    copy_tree(source, destination)?;
+    if source.is_file() {
+        fs::create_dir_all(destination.join("src"))?;
+        let target = if matches!(
+            name,
+            "rpn" | "brain_fuck" | "brackets_matching" | "hello_rust" | "looping"
+        ) {
+            "main.rs"
+        } else {
+            "lib.rs"
+        };
+        fs::copy(source, destination.join("src").join(target))?;
+    } else {
+        copy_tree(source, destination)?;
+    }
     if !destination.join("Cargo.toml").is_file() {
         fs::write(
             destination.join("Cargo.toml"),
@@ -275,6 +293,16 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     }
     let vendor = Path::new(ROOT).join("vendor/01-edu-rust");
     let tests_dir = vendor.join("tests");
+    // A single file path supplies both the exercise name and its location.
+    if args.len() == 1
+        && Path::new(&args[0])
+            .extension()
+            .is_some_and(|ext| ext == "rs")
+    {
+        let path = PathBuf::from(&args[0]);
+        let name = path.file_stem().ok_or("Solution file has no name")?;
+        args = vec![name.to_owned(), path.into_os_string()];
+    }
     if args.len() == 1 && args[0] == "--list" {
         let mut names = Vec::new();
         for entry in fs::read_dir(&tests_dir)? {
@@ -320,6 +348,21 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             }
             for entry in fs::read_dir(dir)? {
                 let entry = entry?;
+                if entry.file_type()?.is_file()
+                    && entry.path().extension().is_some_and(|ext| ext == "rs")
+                {
+                    let name = entry
+                        .path()
+                        .file_stem()
+                        .unwrap()
+                        .to_string_lossy()
+                        .replace('-', "_");
+                    if tests_dir.join(format!("{name}_test/Cargo.toml")).is_file() {
+                        exercises.push((name, entry.path()));
+                    } else {
+                        skipped.push(entry.path());
+                    }
+                }
                 if entry.file_type()?.is_dir()
                     && !entry.file_name().to_string_lossy().starts_with('.')
                     && entry.file_name() != "target"
@@ -409,6 +452,12 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
     let source = solution_dir(&exercise, &input)?;
+    if push && source.is_file() {
+        return Err(
+            "--push requires an exercise folder. Test standalone files with rt <exercise>.rs."
+                .into(),
+        );
+    }
     let timeout_seconds = match env::var("RUST_TEST_TIMEOUT_SECS") {
         Ok(value) => value
             .parse::<u64>()
@@ -438,7 +487,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             {
                 return Err("Unexpected student dependency path in upstream manifest".into());
             }
-            let sibling = source.parent().unwrap().join(name);
+            let sibling = solution_dir(name, source.parent().unwrap())?;
             stage_solution(&sibling, &solutions.join(name), name)?;
         }
     }

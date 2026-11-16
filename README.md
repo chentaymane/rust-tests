@@ -1,191 +1,96 @@
-# Rust piscine local tester
+# Rust piscine & checkpoint tester
 
-Test your Rust piscine exercises locally with `rt`, without a submission cooldown.
-Includes 146 bundled exercise suites. Both `rt` and `rust-test` are installed
-and accept the same arguments.
-All 40 unique exercises from the Rust checkpoint lists are included; see the
-[checkpoint guide](CHECKPOINTS.md) for their levels, XP and run commands.
-Requires Linux/macOS (or WSL). The installer sets up Rust, Cargo, and missing
-system build tools automatically. No Docker or Python is needed for normal use.
-Internet access is required if Rust needs installation; installing system build
-tools may prompt for your sudo password.
+146 bundled test suites, including all **40 Rust checkpoint exercises**.
+Linux, macOS and WSL. `rt` and `rust-test` accept the same commands.
 
-## Install once
+## Install or update
 
-From the downloaded tester directory, run this single command:
+Run from the downloaded tester directory:
 
 ```sh
 sh install.sh && . "$HOME/.local/lib/rust-piscine-tester/env"
 ```
 
-The installer:
+Sets up Rust, build tools, tests and commands. No Docker or Python needed.
+Downloads require internet; system tools may require sudo. On macOS, finish
+Command Line Tools installation if prompted, then rerun.
 
-- Finds an existing Rust installation, including one missing from `PATH`.
-- Installs Rust and Cargo if needed, plus missing system build tools on supported Linux distributions.
-- Builds the tester and installs `rt` and `rust-test`.
-- Configures Bash, Zsh and login-shell startup files for future terminals.
+## Checkpoints: test a `.rs` file
 
-You can use `rt` immediately after the command finishes. You do not need to
-create an alias manually. On macOS, if Apple Command Line Tools are missing,
-finish their installation when prompted and rerun the command.
-
-Installation copies the tests into `~/.local/lib/rust-piscine-tester`
-and the command into `~/.local/bin`; you can then remove the original download.
-For another location use `sh install.sh --prefix /your/path`.
-
-## Run from any folder
+No `Cargo.toml` or `src/` folder needed:
 
 ```sh
-cd /path/to/piscine-rust/scalar
-rt                              # detects scalar, also works inside scalar/src
+cd /path/to/checkpoint
+rt min_and_max.rs
+rt matrix_multiplication.rs
+rt rpn.rs
+rt --all                         # all exercise files in this directory
+```
 
+From another directory:
+
+```sh
+rt /path/to/checkpoint/min_and_max.rs
+rt min_and_max /path/to/checkpoint/min_and_max.rs
+rt --all /path/to/checkpoint
+```
+
+Name each file after its exercise. Library exercises need public functions;
+program exercises such as `rpn` need `fn main()`. Required solved dependencies
+can be sibling `.rs` files or exercise folders. Files are copied into temporary
+Cargo projects; your originals stay unchanged.
+
+[Checkpoint levels, XP and exercise lists](CHECKPOINTS.md)
+
+## Piscine: test an exercise folder
+
+```sh
 cd /path/to/piscine-rust
-rt scalar                       # one exercise
-rt --all                        # all supported exercises found recursively
-
-cd /any/other/folder
+rt scalar                        # scalar/src/lib.rs
+rt --all                         # recursively test available exercises
 rt scalar /path/to/piscine-rust
-rt --all /path/to/piscine-rust
-rt --list                       # all bundled exercise names
+
+cd scalar/src
+rt                               # detect the current exercise
 ```
 
-Without installation: `sh /path/to/rust-tests/rust-test scalar /path/to/piscine-rust`.
-Exercise names accept underscores or hyphens. Use Cargo's usual layout:
-`exercise/Cargo.toml` and `exercise/src/lib.rs` (or `src/main.rs` for programs).
-A missing manifest is created in the temporary copy. Dependent solved exercises
-must be siblings, for example `expected_variable` and `edit_distance`.
+Supports `exercise/src/lib.rs` or `src/main.rs`; a missing manifest is generated
+in the temporary copy. Exercise names accept underscores or hyphens.
 
-To test an exercise, then automatically add, commit and push it if the tests pass:
+## Commands
 
-```sh
-rt --push scalar                 # from your piscine directory
-rt -p scalar                     # short form
-rt -p /path/to/piscine-rust/scalar
-rt -p                            # detect the current exercise
-```
+| Command | Action |
+| --- | --- |
+| `rt min_and_max.rs` | Test a standalone checkpoint file |
+| `rt scalar` | Test an exercise folder (or `scalar.rs` if present) |
+| `rt --all [directory]` | Test files and folders; report passed, failed, skipped |
+| `rt --list` | List bundled exercises |
+| `rt -p scalar` | Test, then add, commit and push the exercise folder |
+| `rt -p` | Detect, test and push the current exercise folder |
+| `RUST_TEST_TIMEOUT_SECS=300 rt scalar` | Set a 300-second limit (default: 120) |
 
-The commit message is the exercise folder name (for example, `scalar`). Only
-changes inside that folder are staged and committed; other staged files stay
-staged. Failed tests never run Git commands. Git must be installed, and `git push`
-uses your existing remote, upstream and authentication settings. As with a normal
-`git push`, any earlier unpushed commits on the branch are also sent. If the folder
-has no changes, the command still tests and pushes existing commits. A failed push
-keeps the local commit so you can fix the Git settings and retry.
+Push mode requires an exercise folder and configured Git remote/upstream.
+The commit message is the folder name. Other staged files stay staged.
+Failed tests never run Git commands; failed pushes keep the local commit.
+Exercise `target/` files are ignored and untracked, remaining on disk.
+Pushing also sends any earlier unpushed commits on the branch.
 
-After tests pass, push mode adds a `target/` rule to the exercise's `.gitignore`,
-preserving existing rules. Cargo build files already staged or tracked in that
-exercise's `target/` are removed from Git in the exercise commit and kept on disk.
-Earlier commits remain in history; this does not rewrite or shrink old commits.
+## Results and setup notes
 
-Rust prints failed assertions and compilation errors. A nonzero exit code means
-failure. `--all` continues after failures and reports passed, failed and skipped
-projects. Unsupported projects are explicitly skipped and make the batch exit
-nonzero. It tests existing exercises, not missing quests. Run batches on your
-piscine directory, not your entire home directory.
-
-## Website-style output
-
-Output includes Cargo's full warnings, source locations, error codes and hints,
-as in the website tester. Compilation failures end with `Solution did not compile.`
-
-For example, a private `sum` function in `scalar/src/lib.rs` produces diagnostics
-like these (excerpt):
-
-```text
-warning: function `sum` is never used
-error[E0425]: cannot find function `sum` in this scope
- --> src/main.rs:5:25
-  |
-5 |     println!("sum: {}", sum(234, 2)); // 'sum: 236'
-  |                         ^^^ not found in this scope
-...
-scalar failed
-Solution did not compile.
-```
-
-The test suite imports your library from a separate crate. Functions required
-by the subject must be public, for example `pub fn sum(a: u8, b: u8) -> u8`.
-For `scalar`, this also applies to `diff`, `pro`, `quo`, and `rem`.
-
-Passing solutions print Cargo's test results followed by `scalar passed`.
-An assertion failure prints the failed test and its assertion details; it is
-reported separately from a compilation failure.
-
-The website's `Already failed code at commit` / `Previous output` wrapper belongs
-to its submission cache; local runs always test your current saved files.
-Local file paths, compiler versions, timings and platform test versions can differ
-from the website, so the output is not guaranteed to be byte-for-byte identical.
-
-## Builds and time limits
-
-Your source files are copied into a temporary directory and cleaned up afterward;
-build artifacts are cached in the installed tester. Cargo may download dependencies
-on first use. Subsequent runs can work offline once those dependencies are cached.
-The default limit is 120 seconds per exercise, including compilation/downloads:
-
-```sh
-RUST_TEST_TIMEOUT_SECS=300 rt scalar
-```
-
-## Update an existing installation
-
-After updating the downloaded tester files, rerun the installer from that directory:
-
-```sh
-sh install.sh && . "$HOME/.local/lib/rust-piscine-tester/env"
-```
-
-This updates both commands and the installed test bundle. Repeated installation
-does not duplicate the startup entries.
-
-If `rt` is unavailable in an already-open terminal, activate its environment:
-
-```sh
-. "$HOME/.local/lib/rust-piscine-tester/env"
-```
+- Success: `<exercise> passed`. Compilation failure: `Solution did not compile.`
+- Cargo warnings and assertion details are shown. Failures return a nonzero exit code.
+- `--all` continues after failures; unsupported exercises are skipped and return nonzero.
+- First runs may download dependencies; later runs can work offline if cached.
+- Commands install to `~/.local/bin`; tests to `~/.local/lib/rust-piscine-tester`.
+- Custom location: `sh install.sh --prefix /your/path`.
+- Without installing: `sh /path/to/rust-tests/rust-test min_and_max.rs`.
+- If `rt` is missing: `. "$HOME/.local/lib/rust-piscine-tester/env"`.
 
 ## Coverage and provenance
 
-The linked [01-edu/public](https://github.com/01-edu/public) repository provides
-the exercise instructions. This tester reuses the MIT-licensed runner and bundled
-tests from [terry-xyz/01-rust-local-test](https://github.com/terry-xyz/01-rust-local-test)
-at commit `beba87c81ce49ba59026bebbda5063a1ddbcd1ab`, with automatic detection,
-batch testing and a global command installer added here. That bundle records
-extraction from the official Rust test image; see [THIRD_PARTY.md](THIRD_PARTY.md)
-and [source.json](vendor/01-edu-rust/source.json). The 01-edu test files are
-preserved unchanged. `scripts/sync-upstream.py` can restore the recorded image
-snapshot with Python and network access.
+Tests are a snapshot and may differ from the platform grader. Some require
+external crates or nightly Rust; audit projects are excluded. Submitted code
+runs with your account permissions.
 
-To refresh directly from the [official container package](https://github.com/orgs/01-edu/packages/container/package/test-rust)
-on your PC, without Docker:
-
-```sh
-python3 scripts/sync-upstream.py --latest
-sh install.sh
-```
-
-This downloads the test layers, verifies their SHA-256 digests and records the
-image digest in `source.json`. It may change the number of available suites.
-The bundled snapshot works immediately; refreshing requires registry access.
-The historical hashes in `vendor/snapshot.json` and layer details in
-`THIRD_PARTY.md` describe the original bundled version, before a refresh.
-
-This is a snapshot, not a guarantee of matching today's platform grader or every
-quest version. Known example: the bundled `hello_rust` assertion expects
-`Hello, Rust!!`, while the current public subject says `Hello, Rust!`.
-Some exercises require nightly Rust or external crates. Use `--list` to check
-available coverage; audit-based projects are outside these automated suites.
-
-The tester executes code with your normal account permissions. Temporary copies
-protect your source from tester edits; they do not isolate running code.
-
-## Development checks
-
-```sh
-cargo fmt --check
-cargo clippy --offline --all-targets -- -D warnings
-cargo test --offline
-python3 tests/smoke.py
-python3 tests/refresh.py
-python3 tests/bootstrap.py
-```
+[Upstream sources and license](THIRD_PARTY.md) ·
+[Diagnostics, test refresh and development checks](DETAILS.md)

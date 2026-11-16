@@ -72,6 +72,55 @@ pub fn rem(a:f32,b:f32)->f32{a%b}
         assert 'scalar passed' in run([binary, 'scalar', piscine], base)
         assert '1 passed, 0 failed, 0 skipped' in run([binary, '--all', piscine], base)
         assert original == snapshot(piscine), 'Runner modified student files'
+        # Checkpoint submissions are standalone files, without Cargo projects.
+        checkpoint = base / 'checkpoint with spaces'
+        checkpoint.mkdir()
+        single = checkpoint / 'min_and_max.rs'
+        correct = 'pub fn min_and_max(a:i32,b:i32,c:i32)->(i32,i32){(a.min(b).min(c),a.max(b).max(c))}\n'
+        single.write_text(correct)
+        checkpoint_original = snapshot(checkpoint)
+        for args, cwd in [
+            (['min_and_max.rs'], checkpoint),
+            ([single], base),
+            (['min_and_max', single], base),
+            (['min_and_max.rs', checkpoint], base),
+            (['min_and_max'], checkpoint),
+        ]:
+            assert 'min_and_max passed' in run([binary, *args], cwd)
+        assert '1 passed, 0 failed, 0 skipped' in run([binary, '--all', checkpoint], base)
+        assert checkpoint_original == snapshot(checkpoint), 'Runner modified checkpoint files'
+        assert '--push requires an exercise folder' in run([binary, '-p', single], base, False)
+        assert 'No such file' in run([binary, checkpoint / 'nextprime.rs'], base, False)
+        single.write_text(correct.replace('(a.min(b).min(c),a.max(b).max(c))', '(0,0)'))
+        assert 'min_and_max failed' in run([binary, single], base, False)
+        single.write_text('invalid rust syntax')
+        assert 'Solution did not compile.' in run([binary, single], base, False)
+        single.write_text(correct)
+        # Program exercises must be staged as binaries, rather than libraries.
+        rpn = checkpoint / 'rpn.rs'
+        rpn.write_text('''fn main() {
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    let result = (|| -> Option<i64> {
+        if args.len() != 1 { return None; }
+        let mut stack = Vec::new();
+        for token in args[0].split_whitespace() {
+            if let Ok(n) = token.parse::<i64>() { stack.push(n); }
+            else {
+                let b = stack.pop()?;
+                let a = stack.pop()?;
+                stack.push(match token {
+                    "+" => a.checked_add(b)?, "-" => a.checked_sub(b)?,
+                    "*" => a.checked_mul(b)?, "/" => a.checked_div(b)?,
+                    "%" => a.checked_rem(b)?, _ => return None,
+                });
+            }
+        }
+        if stack.len() == 1 { stack.pop() } else { None }
+    })();
+    match result { Some(n) => println!("{n}"), None => println!("Error") }
+}
+''')
+        assert 'rpn passed' in run([binary, rpn], base)
         # Exercise pushes use only temporary repositories and a local bare remote.
         remote = base / 'remote.git'
         run(['git', 'init', '--bare', remote], base)
