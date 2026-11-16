@@ -51,9 +51,9 @@ rt
 ```
 
 Name each standalone file after its exercise. Library exercises need public
-functions. For a Cargo library, put them in `src/lib.rs` and match the package
-name to the exercise. Program exercises such as `rpn` need `fn main()`, which
-goes in `src/main.rs` for a Cargo project.
+functions and a matching Cargo package name. You can put those functions in
+`src/lib.rs` or in `src/main.rs` of a standard `cargo new` project. Program
+exercises such as `rpn` need `fn main()` in `src/main.rs` for a Cargo project.
 Required solved dependencies can be sibling `.rs` files or exercise folders.
 The tester copies submissions into a temporary directory.
 

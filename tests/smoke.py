@@ -119,6 +119,11 @@ pub fn rem(a:f32,b:f32)->f32{a%b}
         assert library_original == snapshot(library), 'Runner modified the checkpoint Cargo project'
         renamed = library.rename(base / 'custom checkpoint project')
         assert 'min_and_max passed' in run([binary, 'min_and_max', renamed], base)
+        renamed.rename(library)
+        (library / 'src/lib.rs').rename(library / 'src/main.rs')
+        binary_project_original = snapshot(library)
+        assert 'min_and_max passed' in run([binary, 'min_and_max/'], checkpoint)
+        assert binary_project_original == snapshot(library), 'Runner modified the binary Cargo project'
         # Program exercises must be staged as binaries, rather than libraries.
         rpn = checkpoint / 'rpn.rs'
         rpn.write_text('''fn main() {

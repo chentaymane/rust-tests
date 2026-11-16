@@ -164,19 +164,23 @@ fn solution_dir(exercise: &str, input: &Path, prefer_cargo_project: bool) -> io:
 }
 
 fn stage_solution(source: &Path, destination: &Path, name: &str) -> io::Result<()> {
+    let is_program = matches!(
+        name,
+        "rpn" | "brain_fuck" | "brackets_matching" | "hello_rust" | "looping"
+    );
+    let src = destination.join("src");
     if source.is_file() {
-        fs::create_dir_all(destination.join("src"))?;
-        let target = if matches!(
-            name,
-            "rpn" | "brain_fuck" | "brackets_matching" | "hello_rust" | "looping"
-        ) {
-            "main.rs"
-        } else {
-            "lib.rs"
-        };
-        fs::copy(source, destination.join("src").join(target))?;
+        fs::create_dir_all(&src)?;
+        let entry = if is_program { "main.rs" } else { "lib.rs" };
+        fs::copy(source, src.join(entry))?;
     } else {
         copy_tree(source, destination)?;
+        // Cargo can discover this library in the staged copy of a binary project.
+        let main = src.join("main.rs");
+        let lib = src.join("lib.rs");
+        if !is_program && !lib.exists() && main.is_file() {
+            fs::copy(main, lib)?;
+        }
     }
     if !destination.join("Cargo.toml").is_file() {
         fs::write(
