@@ -4,7 +4,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{env, fs, io};
 
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
-const USAGE: &str = "usage: rust-test [exercise] [solution-directory-or-file]\n       rust-test --all [piscine-directory]\n       rust-test --list\n\nexamples:\n  rust-test scalar ../piscine-rust\n  rust-test scalar ../piscine-rust/scalar/src/lib.rs\n\nRun only trusted code. This tool does not sandbox solutions or build scripts.\nRuns stop after 120 seconds; set RUST_TEST_TIMEOUT_SECS to a positive whole number to change the limit.";
+const USAGE: &str = "usage: rust-test [exercise] [solution-directory-or-file]\n       rust-test --push|-p [exercise-folder] [solution-directory-or-file]\n       rust-test --all [piscine-directory]\n       rust-test --list\n\nexamples:\n  rust-test scalar ../piscine-rust\n  rust-test scalar ../piscine-rust/scalar/src/lib.rs\n  rt -p scalar\n  rt --push ../piscine-rust/scalar\n\n--push / -p: test first, then git add, commit with the folder name, and push.\nOnly the exercise folder is committed. Uses your configured Git remote/upstream.\n\nRun only trusted code. This tool does not sandbox solutions or build scripts.\nRuns stop after 120 seconds; set RUST_TEST_TIMEOUT_SECS to a positive whole number to change the limit.";
 
 struct Workspace(PathBuf);
 
@@ -164,11 +164,67 @@ fn stage_solution(source: &Path, destination: &Path, name: &str) -> io::Result<(
     Ok(())
 }
 
+fn push_solution(source: &Path) -> Result<i32, Box<dyn std::error::Error>> {
+    let message = source.file_name().ok_or("Exercise folder has no name")?;
+    let git = || {
+        let mut command = Command::new("git");
+        command.current_dir(source);
+        command
+    };
+    let status = git().args(["add", "-A", "--", "."]).status()?;
+    if !status.success() {
+        return Err("git add failed; nothing was committed or pushed".into());
+    }
+    let changes = git()
+        .args(["diff", "--cached", "--quiet", "--", "."])
+        .status()?;
+    match changes.code() {
+        Some(0) => println!(
+            "No changes in {}; pushing existing commits.",
+            source.display()
+        ),
+        Some(1) => {
+            let status = git()
+                .args(["commit", "--only", "-m"])
+                .arg(message)
+                .args(["--", "."])
+                .status()?;
+            if !status.success() {
+                return Err("git commit failed; nothing was pushed".into());
+            }
+        }
+        _ => return Err("Could not check staged exercise changes; nothing was pushed".into()),
+    }
+    let status = git().arg("push").status()?;
+    if !status.success() {
+        return Err("git push failed; any local commit was kept. Check your remote/upstream and authentication, then retry.".into());
+    }
+    Ok(0)
+}
+
 fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut args: Vec<_> = env::args_os().skip(1).collect();
     if args.len() == 1 && (args[0] == "--help" || args[0] == "-h") {
         println!("{USAGE}");
         return Ok(0);
+    }
+    let push = args
+        .first()
+        .is_some_and(|arg| arg == "--push" || arg == "-p");
+    if push {
+        args.remove(0);
+        if args
+            .iter()
+            .any(|arg| arg.to_string_lossy().starts_with('-'))
+        {
+            return Err(USAGE.into());
+        }
+        // A folder path supplies both the exercise name and its location.
+        if args.len() == 1 && Path::new(&args[0]).is_dir() {
+            let source = Path::new(&args[0]).canonicalize()?;
+            let name = source.file_name().ok_or("Exercise folder has no name")?;
+            args = vec![name.to_owned(), source.into_os_string()];
+        }
     }
     let vendor = Path::new(ROOT).join("vendor/01-edu-rust");
     let tests_dir = vendor.join("tests");
@@ -371,6 +427,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let status = run_with_timeout(&mut cargo_command(), remaining)?;
     if status.success() {
         println!("{exercise} passed");
+        if push {
+            return push_solution(&source);
+        }
     } else {
         eprintln!("{exercise} failed");
     }

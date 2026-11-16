@@ -59,6 +59,52 @@ pub fn rem(a:f32,b:f32)->f32{a%b}
         assert 'scalar passed' in run([binary, 'scalar', piscine], base)
         assert '1 passed, 0 failed, 0 skipped' in run([binary, '--all', piscine], base)
         assert original == snapshot(piscine), 'Runner modified student files'
+        # Exercise pushes use only temporary repositories and a local bare remote.
+        remote = base / 'remote.git'
+        run(['git', 'init', '--bare', remote], base)
+        run(['git', 'init', piscine], base)
+
+        def git(*args, success=True):
+            return run(['git', *args], piscine, success=success)
+
+        git('config', 'user.name', 'Tester')
+        git('config', 'user.email', 'tester@example.invalid')
+        git('config', 'commit.gpgsign', 'false')
+        git('add', '.')
+        git('commit', '-m', 'initial')
+        git('remote', 'add', 'origin', str(remote))
+        git('push', '-u', 'origin', 'HEAD')
+        unrelated = piscine / 'notes.txt'
+        unrelated.write_text('Keep staged but out of the exercise commit.\n')
+        git('add', 'notes.txt')
+        solution.write_text(code.replace('a+b', '0'))
+        before_head = git('rev-parse', 'HEAD')
+        before_index = git('diff', '--cached')
+        assert 'scalar failed' in run([binary, '-p', 'scalar'], piscine, False)
+        assert before_head == git('rev-parse', 'HEAD')
+        assert before_index == git('diff', '--cached'), 'Failed tests changed the index'
+        solution.write_text(code + '// ready to submit\n')
+        assert 'scalar passed' in run([binary, '--push', 'scalar'], piscine)
+        assert git('log', '-1', '--format=%s').strip() == 'scalar'
+        assert git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').splitlines() == ['scalar/src/lib.rs']
+        assert git('diff', '--cached', '--name-only').splitlines() == ['notes.txt']
+        assert git('rev-parse', 'HEAD') == git('rev-parse', '@{upstream}')
+        committed = git('rev-parse', 'HEAD')
+        assert 'No changes' in run([binary, '-p'], scalar / 'src')
+        assert committed == git('rev-parse', 'HEAD'), 'Retry created a duplicate commit'
+        # A failed push keeps its commit, allowing a later retry with no changes.
+        git('remote', 'set-url', 'origin', str(base / 'missing-remote'))
+        solution.write_text(code + '// another submission\n')
+        assert 'git push failed' in run([binary, '-p', scalar], base, False)
+        local_commit = git('rev-parse', 'HEAD')
+        assert local_commit != committed
+        assert committed == git('rev-parse', '@{upstream}')
+        git('remote', 'set-url', 'origin', str(remote))
+        assert 'No changes' in run([binary, '--push', scalar], base)
+        assert local_commit == git('rev-parse', 'HEAD') == git('rev-parse', '@{upstream}')
+        assert git('diff', '--cached', '--name-only').splitlines() == ['notes.txt']
+        for invalid in ['--all', '--list', '-p']:
+            assert 'usage:' in run([binary, '-p', invalid], piscine, False)
         # Reproduce the website example: private functions are not visible to
         # the separate scalar_test crate. Preserve the real Rust diagnostics.
         solution.write_text(code.replace('pub fn', 'fn'))
@@ -82,7 +128,7 @@ pub fn rem(a:f32,b:f32)->f32{a%b}
         assert 'No supported exercises' in run([binary, '--all', base / 'install with spaces/bin'], base, False)
         assert 'No upstream tests' in run([binary, 'does_not_exist', piscine], base, False)
         assert 'Cannot detect' in run([binary], base, False)
-        print('Smoke checks passed: installation, detection, pass/fail, batch, skips, source preservation.')
+        print('Smoke checks passed: installation, detection, pass/fail, batch, skips, source preservation, Git push workflow.')
 
 
 if __name__ == '__main__':

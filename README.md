@@ -53,6 +53,23 @@ Exercise names accept underscores or hyphens. Use Cargo's usual layout:
 A missing manifest is created in the temporary copy. Dependent solved exercises
 must be siblings, for example `expected_variable` and `edit_distance`.
 
+To test an exercise, then automatically add, commit and push it if the tests pass:
+
+```sh
+rt --push scalar                 # from your piscine directory
+rt -p scalar                     # short form
+rt -p /path/to/piscine-rust/scalar
+rt -p                            # detect the current exercise
+```
+
+The commit message is the exercise folder name (for example, `scalar`). Only
+changes inside that folder are staged and committed; other staged files stay
+staged. Failed tests never run Git commands. Git must be installed, and `git push`
+uses your existing remote, upstream and authentication settings. As with a normal
+`git push`, any earlier unpushed commits on the branch are also sent. If the folder
+has no changes, the command still tests and pushes existing commits. A failed push
+keeps the local commit so you can fix the Git settings and retry.
+
 Rust prints failed assertions and compilation errors. A nonzero exit code means
 failure. `--all` continues after failures and reports passed, failed and skipped
 projects. Unsupported projects are explicitly skipped and make the batch exit
