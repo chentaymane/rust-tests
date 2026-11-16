@@ -75,7 +75,7 @@ if [ "$source_dir" = "$destination" ]; then
     exit 1
 fi
 mkdir -p "$destination/src" "$prefix/bin"
-cp "$source_dir/Cargo.toml" "$source_dir/LICENSE" "$source_dir/THIRD_PARTY.md" "$destination/"
+cp "$source_dir/Cargo.toml" "$source_dir/THIRD_PARTY.md" "$destination/"
 cp "$source_dir/src/main.rs" "$destination/src/"
 # Copy the bundle, including its provenance metadata.
 mkdir -p "$destination/vendor"
