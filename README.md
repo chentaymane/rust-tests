@@ -20,7 +20,7 @@ On Windows, a fresh install uses Rust's GNU toolchain with its bundled linker.
 Existing MSVC toolchains need the
 [Visual Studio C++ build tools and Windows SDK](https://rust-lang.github.io/rustup/installation/windows-msvc.html).
 
-## Checkpoints: test a `.rs` file
+## Checkpoints: test a file or Cargo project
 
 No `Cargo.toml` or `src/` folder needed:
 
@@ -29,7 +29,7 @@ cd /path/to/checkpoint
 rt min_and_max.rs
 rt matrix_multiplication.rs
 rt rpn.rs
-rt --all                         # all exercise files in this directory
+rt --all                         # test exercise files and projects in this directory
 ```
 
 From another directory:
@@ -40,10 +40,22 @@ rt min_and_max /path/to/checkpoint/min_and_max.rs
 rt --all /path/to/checkpoint
 ```
 
-Name each file after its exercise. Library exercises need public functions;
-program exercises such as `rpn` need `fn main()`. Required solved dependencies
-can be sibling `.rs` files or exercise folders. Files are copied into temporary
-Cargo projects; your originals stay unchanged.
+To test a Cargo project, pass its directory or run `rt` from inside an
+exercise-named project:
+
+```sh
+rt /path/to/checkpoint/min_and_max
+rt min_and_max /path/to/project
+cd /path/to/checkpoint/min_and_max
+rt
+```
+
+Name each standalone file after its exercise. Library exercises need public
+functions. For a Cargo library, put them in `src/lib.rs` and match the package
+name to the exercise. Program exercises such as `rpn` need `fn main()`, which
+goes in `src/main.rs` for a Cargo project.
+Required solved dependencies can be sibling `.rs` files or exercise folders.
+The tester copies submissions into a temporary directory.
 
 [Checkpoint levels, XP and exercise lists](CHECKPOINTS.md)
 
@@ -67,6 +79,7 @@ in the temporary copy. Exercise names accept underscores or hyphens.
 | Command | Action |
 | --- | --- |
 | `rt min_and_max.rs` | Test a standalone checkpoint file |
+| `rt ./min_and_max` | Test a checkpoint Cargo project |
 | `rt scalar` | Test an exercise folder (or `scalar.rs` if present) |
 | `rt --all [directory]` | Test files and folders; report passed, failed, skipped |
 | `rt --list` | List bundled exercises |

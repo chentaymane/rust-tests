@@ -72,7 +72,7 @@ pub fn rem(a:f32,b:f32)->f32{a%b}
         assert 'scalar passed' in run([binary, 'scalar', piscine], base)
         assert '1 passed, 0 failed, 0 skipped' in run([binary, '--all', piscine], base)
         assert original == snapshot(piscine), 'Runner modified student files'
-        # Checkpoint submissions are standalone files, without Cargo projects.
+        # Checkpoints accept standalone files and Cargo projects.
         checkpoint = base / 'checkpoint with spaces'
         checkpoint.mkdir()
         single = checkpoint / 'min_and_max.rs'
@@ -96,6 +96,29 @@ pub fn rem(a:f32,b:f32)->f32{a%b}
         single.write_text('invalid rust syntax')
         assert 'Solution did not compile.' in run([binary, single], base, False)
         single.write_text(correct)
+        library = checkpoint / 'min_and_max'
+        (library / 'src').mkdir(parents=True)
+        (library / 'Cargo.toml').write_text(
+            '[package]\nname = "min_and_max"\nversion = "0.1.0"\nedition = "2021"\n'
+        )
+        (library / 'src/lib.rs').write_text('mod solution;\npub use solution::min_and_max;\n')
+        (library / 'src/solution.rs').write_text(correct)
+        (library / 'min_and_max.rs').write_text('invalid rust syntax')
+        library_original = snapshot(library)
+        single.write_text('invalid rust syntax')
+        assert 'Solution did not compile.' in run([binary, 'min_and_max'], checkpoint, False)
+        for args, cwd in [
+            ([library], base),
+            (['./min_and_max'], checkpoint),
+            (['min_and_max', library], base),
+            ([], library),
+        ]:
+            assert 'min_and_max passed' in run([binary, *args], cwd)
+        single.write_text(correct)
+        assert '2 passed, 0 failed, 0 skipped' in run([binary, '--all', checkpoint], base)
+        assert library_original == snapshot(library), 'Runner modified the checkpoint Cargo project'
+        renamed = library.rename(base / 'custom checkpoint project')
+        assert 'min_and_max passed' in run([binary, 'min_and_max', renamed], base)
         # Program exercises must be staged as binaries, rather than libraries.
         rpn = checkpoint / 'rpn.rs'
         rpn.write_text('''fn main() {
@@ -121,6 +144,13 @@ pub fn rem(a:f32,b:f32)->f32{a%b}
 }
 ''')
         assert 'rpn passed' in run([binary, rpn], base)
+        program = checkpoint / 'rpn'
+        (program / 'src').mkdir(parents=True)
+        (program / 'Cargo.toml').write_text(
+            '[package]\nname = "rpn"\nversion = "0.1.0"\nedition = "2021"\n'
+        )
+        (program / 'src/main.rs').write_text(rpn.read_text())
+        assert 'rpn passed' in run([binary, program], base)
         # Exercise pushes use only temporary repositories and a local bare remote.
         remote = base / 'remote.git'
         run(['git', 'init', '--bare', remote], base)

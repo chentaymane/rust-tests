@@ -12,7 +12,15 @@ rt matrix_multiplication.rs
 rt rpn.rs
 ```
 
-Or run every supported exercise found in a checkpoint directory:
+Pass a Cargo project directory named after the exercise, or supply the exercise
+name explicitly for a differently named directory:
+
+```sh
+rt ./min_and_max
+rt min_and_max /path/to/project
+```
+
+Run every supported file and project found in a checkpoint directory:
 
 ```sh
 rt --all /path/to/checkpoint
