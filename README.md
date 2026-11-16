@@ -1,19 +1,24 @@
 # Rust piscine & checkpoint tester
 
 146 bundled test suites, including all **40 Rust checkpoint exercises**.
-Linux, macOS and WSL. `rt` and `rust-test` accept the same commands.
+Linux, macOS, WSL and 64-bit Windows (x86-64) with Git Bash.
+`rt` and `rust-test` accept the same commands.
 
 ## Install or update
 
-Run from the downloaded tester directory:
+Run from the downloaded tester directory. On Windows, use Git Bash:
 
 ```sh
 sh install.sh && . "$HOME/.local/lib/rust-piscine-tester/env"
 ```
 
-Sets up Rust, build tools, tests and commands. No Docker or Python needed.
-Downloads require internet; system tools may require sudo. On macOS, finish
-Command Line Tools installation if prompted, then rerun.
+Sets up Rust, tests and commands. No Docker or Python needed.
+Downloads require internet. On Linux and macOS, system build tools may require
+sudo. On macOS, finish Command Line Tools installation if prompted, then rerun.
+
+On Windows, a fresh install uses Rust's GNU toolchain with its bundled linker.
+Existing MSVC toolchains need the
+[Visual Studio C++ build tools and Windows SDK](https://rust-lang.github.io/rustup/installation/windows-msvc.html).
 
 ## Checkpoints: test a `.rs` file
 
@@ -83,6 +88,7 @@ Pushing also sends any earlier unpushed commits on the branch.
 - First runs may download dependencies; later runs can work offline if cached.
 - Commands install to `~/.local/bin`; tests to `~/.local/lib/rust-piscine-tester`.
 - Custom location: `sh install.sh --prefix /your/path`.
+- On Windows with Rust's GNU toolchain, use an install path without apostrophes so the linker can build exercises.
 - Without installing: `sh /path/to/rust-tests/rust-test min_and_max.rs`.
 - If `rt` is missing: `. "$HOME/.local/lib/rust-piscine-tester/env"`.
 

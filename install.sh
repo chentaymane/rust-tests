@@ -1,5 +1,5 @@
 #!/bin/sh
-# One-command setup for Linux/macOS/WSL; no manual Rust or PATH setup required.
+# One-command setup for Linux, macOS, WSL and 64-bit Git Bash on Windows.
 set -eu
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 prefix="$HOME/.local"
@@ -11,7 +11,18 @@ if [ "$#" -gt 0 ]; then
     prefix=$2
 fi
 cargo_home=${CARGO_HOME:-"$HOME/.cargo"}
-export PATH="$cargo_home/bin:$PATH"
+exe_suffix=
+case "$(uname -s)" in
+    MINGW*|MSYS*)
+        exe_suffix=.exe
+        prefix=$(cygpath -au "$prefix")
+        CARGO_HOME=$(cygpath -am "$cargo_home")
+        export CARGO_HOME
+        cargo_home=$CARGO_HOME
+        export PATH="$(cygpath -u "$cargo_home")/bin:$PATH"
+        ;;
+    *) export PATH="$cargo_home/bin:$PATH" ;;
+esac
 
 as_admin() {
     if [ "$(id -u)" -eq 0 ]; then "$@";
@@ -39,7 +50,9 @@ install_build_tools() {
         exit 1
     fi
 }
-if ! command -v cc >/dev/null 2>&1 || { ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; }; then
+# Windows Rust uses its own linker or discovers the installed MSVC tools.
+if [ -z "$exe_suffix" ] &&
+    { ! command -v cc >/dev/null 2>&1 || { ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; }; }; then
     install_build_tools
 fi
 usable_rust() {
@@ -47,23 +60,49 @@ usable_rust() {
         rustc --version | awk '{split($2,v,"."); exit !(v[1]>1 || (v[1]==1 && v[2]>=82))}'
 }
 if ! usable_rust; then
+    toolchain=stable
+    if [ -n "$exe_suffix" ]; then
+        case "$(uname -m)" in
+            x86_64) windows_host=x86_64-pc-windows-gnu ;;
+            *)
+                echo 'Install Rust 1.82 or newer for your Windows architecture from https://rustup.rs/, then rerun this script.' >&2
+                exit 1
+                ;;
+        esac
+        toolchain="stable-$windows_host"
+    fi
     if command -v rustup >/dev/null 2>&1; then
-        echo 'Setting up the stable Rust toolchain...'
-        rustup toolchain install stable --profile minimal
+        printf 'Setting up the %s Rust toolchain...\n' "$toolchain"
+        rustup toolchain install "$toolchain" --profile minimal
     else
         echo 'Installing Rust and Cargo using the official rustup installer...'
-        bootstrap=$(mktemp)
-        trap 'rm -f "$bootstrap"' EXIT HUP INT TERM
-        if command -v curl >/dev/null 2>&1; then
-            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs -o "$bootstrap"
-        else
-            wget -q https://sh.rustup.rs -O "$bootstrap"
+        bootstrap_dir=$(mktemp -d)
+        bootstrap="$bootstrap_dir/rustup-init$exe_suffix"
+        trap 'rm -f "$bootstrap"; rmdir "$bootstrap_dir"' EXIT
+        trap 'exit 1' HUP INT TERM
+        url=https://sh.rustup.rs
+        if [ -n "$exe_suffix" ]; then
+            url="https://static.rust-lang.org/rustup/dist/$windows_host/rustup-init.exe"
         fi
-        sh "$bootstrap" -y --profile minimal --default-toolchain stable --no-modify-path
+        if command -v curl >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$bootstrap"
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q "$url" -O "$bootstrap"
+        else
+            echo 'Installing Rust requires curl or wget. Run this script in Git Bash on Windows.' >&2
+            exit 1
+        fi
+        if [ -n "$exe_suffix" ]; then
+            chmod +x "$bootstrap"
+            "$bootstrap" -y --profile minimal --default-host "$windows_host" --default-toolchain stable --no-modify-path
+        else
+            sh "$bootstrap" -y --profile minimal --default-toolchain stable --no-modify-path
+        fi
         rm -f "$bootstrap"
+        rmdir "$bootstrap_dir"
         trap - EXIT HUP INT TERM
     fi
-    export RUSTUP_TOOLCHAIN=stable
+    export RUSTUP_TOOLCHAIN="$toolchain"
 fi
 usable_rust || { echo 'Rust setup did not complete. Check the download/install messages above.' >&2; exit 1; }
 cargo_bin=$(dirname -- "$(command -v cargo)")
@@ -81,7 +120,11 @@ cp "$source_dir/src/main.rs" "$destination/src/"
 mkdir -p "$destination/vendor"
 cp -R "$source_dir/vendor/." "$destination/vendor/"
 # Override ambient Cargo output directories so the binary has a predictable path.
-cargo build --release --offline --manifest-path "$destination/Cargo.toml" --target-dir "$destination/target"
+build_root=$destination
+if [ -n "$exe_suffix" ]; then
+    build_root=$(cygpath -am "$destination")
+fi
+cargo build --release --offline --manifest-path "$build_root/Cargo.toml" --target-dir "$build_root/target"
 quote() {
     printf "'"
     printf '%s' "$1" | sed "s/'/'\\\\''/g"
@@ -102,13 +145,22 @@ quote() {
 } > "$destination/env"
 {
     printf '#!/bin/sh\nset -eu\n. '; quote "$destination/env"; printf '\nexec '
-    quote "$destination/target/release/rust-test"; printf ' "$@"\n'
+    quote "$destination/target/release/rust-test$exe_suffix"; printf ' "$@"\n'
 } > "$prefix/bin/rust-test"
 chmod +x "$prefix/bin/rust-test"
 cp "$prefix/bin/rust-test" "$prefix/bin/rt"
 # Configure new login shells and interactive Bash/Zsh shells, without duplicates.
 profile_line=". $(quote "$destination/env")"
-for startup in "$HOME/.profile" "$HOME/.bashrc" "${ZDOTDIR:-$HOME}/.zshrc"; do
+bash_login="$HOME/.profile"
+if [ -n "$exe_suffix" ]; then
+    for startup in "$HOME/.bash_profile" "$HOME/.bash_login"; do
+        if [ -f "$startup" ]; then
+            bash_login=$startup
+            break
+        fi
+    done
+fi
+for startup in "$bash_login" "$HOME/.bashrc" "${ZDOTDIR:-$HOME}/.zshrc"; do
     if ! [ -f "$startup" ] || ! grep -Fqx "$profile_line" "$startup"; then
         printf '\n# Rust piscine local tester\n%s\n' "$profile_line" >> "$startup"
     fi
