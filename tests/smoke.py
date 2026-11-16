@@ -83,15 +83,35 @@ pub fn rem(a:f32,b:f32)->f32{a%b}
         assert 'scalar failed' in run([binary, '-p', 'scalar'], piscine, False)
         assert before_head == git('rev-parse', 'HEAD')
         assert before_index == git('diff', '--cached'), 'Failed tests changed the index'
+        assert not (scalar / '.gitignore').exists(), 'Failed tests changed ignore rules'
+        artifact = scalar / 'target/debug/build-artifact'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_bytes(b'local build output')
+        (scalar / '.gitignore').write_text('# preserve existing rules\n*.swp')
         solution.write_text(code + '// ready to submit\n')
         assert 'scalar passed' in run([binary, '--push', 'scalar'], piscine)
         assert git('log', '-1', '--format=%s').strip() == 'scalar'
-        assert git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').splitlines() == ['scalar/src/lib.rs']
+        assert git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').splitlines() == ['scalar/.gitignore', 'scalar/src/lib.rs']
+        assert (scalar / '.gitignore').read_text() == '# preserve existing rules\n*.swp\ntarget/\n'
+        assert not git('ls-files', '--', 'scalar/target')
+        assert artifact.read_bytes() == b'local build output'
+        assert git('check-ignore', 'scalar/target/debug/build-artifact').strip() == 'scalar/target/debug/build-artifact'
         assert git('diff', '--cached', '--name-only').splitlines() == ['notes.txt']
         assert git('rev-parse', 'HEAD') == git('rev-parse', '@{upstream}')
         committed = git('rev-parse', 'HEAD')
         assert 'No changes' in run([binary, '-p'], scalar / 'src')
         assert committed == git('rev-parse', 'HEAD'), 'Retry created a duplicate commit'
+        # Repair build files committed by an older rt; preserve them on disk.
+        git('add', '-f', 'scalar/target')
+        git('commit', '--only', '-m', 'old build artifacts', '--', 'scalar/target')
+        artifact.write_bytes(b'updated local build output')
+        git('add', '-f', 'scalar/target')
+        assert 'scalar passed' in run([binary, '-p', 'scalar'], piscine)
+        assert not git('ls-tree', '-r', '--name-only', 'HEAD', '--', 'scalar/target')
+        assert not git('ls-files', '--', 'scalar/target')
+        assert artifact.read_bytes() == b'updated local build output'
+        assert git('diff', '--cached', '--name-only').splitlines() == ['notes.txt']
+        committed = git('rev-parse', 'HEAD')
         # A failed push keeps its commit, allowing a later retry with no changes.
         git('remote', 'set-url', 'origin', str(base / 'missing-remote'))
         solution.write_text(code + '// another submission\n')

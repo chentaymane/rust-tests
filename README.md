@@ -70,6 +70,11 @@ uses your existing remote, upstream and authentication settings. As with a norma
 has no changes, the command still tests and pushes existing commits. A failed push
 keeps the local commit so you can fix the Git settings and retry.
 
+After tests pass, push mode adds a `target/` rule to the exercise's `.gitignore`,
+preserving existing rules. Cargo build files already staged or tracked in that
+exercise's `target/` are removed from Git in the exercise commit and kept on disk.
+Earlier commits remain in history; this does not rewrite or shrink old commits.
+
 Rust prints failed assertions and compilation errors. A nonzero exit code means
 failure. `--all` continues after failures and reports passed, failed and skipped
 projects. Unsupported projects are explicitly skipped and make the batch exit

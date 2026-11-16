@@ -166,14 +166,54 @@ fn stage_solution(source: &Path, destination: &Path, name: &str) -> io::Result<(
 
 fn push_solution(source: &Path) -> Result<i32, Box<dyn std::error::Error>> {
     let message = source.file_name().ok_or("Exercise folder has no name")?;
+    // Build an exercise-only index so unrelated staged files stay untouched,
+    // including when previously committed build artifacts must be removed.
+    let workspace = Workspace::new()?;
+    let index = workspace.0.join("index");
     let git = || {
         let mut command = Command::new("git");
-        command.current_dir(source);
+        command.current_dir(source).env("GIT_INDEX_FILE", &index);
         command
     };
+    let head = git().args(["rev-parse", "--verify", "HEAD"]).output()?;
+    let status = if head.status.success() {
+        git().args(["read-tree", "HEAD"]).status()?
+    } else {
+        git().args(["read-tree", "--empty"]).status()?
+    };
+    if !status.success() {
+        return Err("Could not prepare Git index; nothing was committed or pushed".into());
+    }
+    let ignore_path = source.join(".gitignore");
+    let mut ignore = match fs::read_to_string(&ignore_path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error.into()),
+    };
+    if ignore.lines().last() != Some("target/") {
+        if !ignore.is_empty() && !ignore.ends_with('\n') {
+            ignore.push('\n');
+        }
+        ignore.push_str("target/\n");
+        fs::write(&ignore_path, ignore)?;
+    }
     let status = git().args(["add", "-A", "--", "."]).status()?;
     if !status.success() {
         return Err("git add failed; nothing was committed or pushed".into());
+    }
+    let status = git()
+        .args([
+            "rm",
+            "-r",
+            "-f",
+            "--cached",
+            "--ignore-unmatch",
+            "--",
+            "target",
+        ])
+        .status()?;
+    if !status.success() {
+        return Err("Could not untrack build artifacts; nothing was committed or pushed".into());
     }
     let changes = git()
         .args(["diff", "--cached", "--quiet", "--", "."])
@@ -184,16 +224,23 @@ fn push_solution(source: &Path) -> Result<i32, Box<dyn std::error::Error>> {
             source.display()
         ),
         Some(1) => {
-            let status = git()
-                .args(["commit", "--only", "-m"])
-                .arg(message)
-                .args(["--", "."])
-                .status()?;
+            let status = git().args(["commit", "-m"]).arg(message).status()?;
             if !status.success() {
                 return Err("git commit failed; nothing was pushed".into());
             }
         }
         _ => return Err("Could not check staged exercise changes; nothing was pushed".into()),
+    }
+    // Synchronize only this exercise in the user's original index.
+    let status = Command::new("git")
+        .current_dir(source)
+        .args(["reset", "--quiet", "HEAD", "--", "."])
+        .status()?;
+    if !status.success() {
+        return Err(
+            "Updating the exercise index failed; any local commit was kept and nothing was pushed"
+                .into(),
+        );
     }
     let status = git().arg("push").status()?;
     if !status.success() {
