@@ -3,6 +3,8 @@
 Test your Rust piscine exercises locally with `rt`, without a submission cooldown.
 Includes 146 bundled exercise suites. Both `rt` and `rust-test` are installed
 and accept the same arguments.
+All 40 unique exercises from the Rust checkpoint lists are included; see the
+[checkpoint guide](CHECKPOINTS.md) for their levels, XP and run commands.
 Requires Linux/macOS (or WSL). The installer sets up Rust, Cargo, and missing
 system build tools automatically. No Docker or Python is needed for normal use.
 Internet access is required if Rust needs installation; installing system build

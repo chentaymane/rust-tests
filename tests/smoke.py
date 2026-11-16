@@ -41,6 +41,19 @@ def main():
         assert run([binary, '--list'], base) == run([prefix / 'bin/rust-test', '--list'], base)
         listing = run([binary, '--list'], base).splitlines()
         assert len(listing) == 146, len(listing)
+        checkpoint_exercises = set('''
+            min_and_max matrix_multiplication reverse_it smallest modify_letter
+            counting_words partial_sums inv_pyramid insertion_sort rpn
+            previousprime nextprime count_factorial_steps lucas_number
+            own_and_return matrix_determinant check_user_name get_document_id
+            dress_code rot21 order_books prime_checker queens scytale_decoder
+            negative_spelling office_worker matrix_display organize_garage
+            moving_targets format_me blood_types_s car_rental drop_the_blog
+            lunch_queue profanity_filter filter_table display_table flat_tree
+            brackets_matching brain_fuck
+        '''.split())
+        missing = checkpoint_exercises - set(listing)
+        assert not missing, f'Missing checkpoint suites: {sorted(missing)}'
         minimal_env = {**install_env, 'PATH': '/usr/bin:/bin'}
         assert len(run([binary, '--list'], base, env=minimal_env).splitlines()) == 146
         piscine = base / 'piscine with spaces'
