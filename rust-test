@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ ! -x "$script_dir/target/release/rust-test" ]; then
+    cargo build --release --offline --manifest-path "$script_dir/Cargo.toml" >&2
+fi
+exec "$script_dir/target/release/rust-test" "$@"
